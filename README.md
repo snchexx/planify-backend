@@ -57,6 +57,43 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Autenticación
+
+La aplicación requiere las variables de conexión MySQL ya configuradas y `JWT_SECRET`, una clave aleatoria de al menos 32 caracteres. En PowerShell puedes generar una con:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+```
+
+Guarda el resultado en `.env` como `JWT_SECRET=...`; no reutilices ni publiques esta clave. La duración del token se configura con `JWT_EXPIRES_IN`, expresada en segundos. El valor predeterminado es `3600` (una hora); por ejemplo, `JWT_EXPIRES_IN=7200` configura dos horas.
+
+La tabla `users` se crea mediante `synchronize` en desarrollo. Para producción, usa migraciones en lugar de `synchronize`.
+
+| Método | Ruta             | Acceso                                   |
+| ------ | ---------------- | ---------------------------------------- |
+| POST   | `/auth/register` | Público; crea usuarios con rol `usuario` |
+| POST   | `/auth/login`    | Público                                  |
+| GET    | `/users/me`      | JWT válido                               |
+| GET    | `/users`         | JWT válido y rol `admin`                 |
+| POST   | `/users`         | JWT válido y rol `admin`; crea usuarios  |
+| GET    | `/users/:id`     | JWT válido y rol `admin`                 |
+| PATCH  | `/users/:id`     | JWT válido y rol `admin`                 |
+| DELETE | `/users/:id`     | JWT válido y rol `admin`                 |
+
+El registro recibe `identificacion`, `nombres`, `apellidos`, `email` y `password`; el inicio de sesión recibe `email` y `password`. Envía el token devuelto como `Authorization: Bearer YOUR_JWT`. Para asignar un administrador, cambia el campo `role` del usuario a `admin` directamente en la base de datos; el registro público no permite elegir roles.
+
+Las rutas de administración aceptan `identificacion`, `nombres`, `apellidos`, `email`, `password`, `role` (`admin` o `usuario`) y `estado` (`activo` o `bloqueado`); todos son opcionales al actualizar. La identificación es única. El estado predeterminado es `activo`; un usuario bloqueado no puede iniciar sesión ni usar un JWT existente. Los campos del perfil son nullable en la base de datos para preservar usuarios preexistentes; el registro nuevo exige esos campos. Las contraseñas requieren al menos 8 caracteres y no pueden superar 72 bytes. Las solicitudes se validan con DTOs; campos no permitidos o inválidos reciben `400`. Las respuestas de usuario nunca incluyen la contraseña ni su hash.
+
+## Actividades
+
+Cada actividad pertenece a un usuario mediante `id_usuario` (relación muchos-a-uno desde actividad a usuario; un usuario puede tener muchas actividades). El CRUD protegido está disponible en `/activities`: `POST`, `GET`, `GET /:id`, `PATCH /:id` y `DELETE /:id`. Los usuarios solo pueden consultar y modificar sus propias actividades; los administradores pueden gestionar todas y asignarlas a un usuario existente usando `idUsuario`.
+
+Los campos son `nombreActividad`, `descripcion`, `fechaActividad` (`YYYY-MM-DD`) y `horaActividad` (`HH:mm`). El usuario dueño se toma del JWT al crear, salvo cuando un administrador especifica `idUsuario`. La fecha y hora se almacenan en columnas MySQL `DATE` y `TIME`.
+
+## Swagger
+
+La documentación interactiva de la API está disponible en `http://localhost:8000/api` al iniciar la aplicación. Para probar rutas protegidas, selecciona **Authorize** e ingresa el JWT obtenido desde `/auth/login` o `/auth/register`.
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
