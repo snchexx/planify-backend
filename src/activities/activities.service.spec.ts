@@ -63,7 +63,15 @@ describe('ActivitiesService', () => {
     );
 
     expect(activitiesRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({ usuario: { id: user.id } }),
+      expect.objectContaining({
+        usuario: { id: user.id },
+        recordatorios: [
+          {
+            fechaRecordatorio: '2026-11-12',
+            horaRecordatorio: '14:30',
+          },
+        ],
+      }),
     );
     expect(result.idUsuario).toBe(user.id);
   });

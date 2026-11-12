@@ -34,6 +34,12 @@ export class ActivitiesService {
       fechaActividad: dto.fechaActividad,
       horaActividad: dto.horaActividad,
       usuario: user,
+      recordatorios: [
+        {
+          fechaRecordatorio: dto.fechaActividad,
+          horaRecordatorio: dto.horaActividad,
+        },
+      ],
     });
 
     return this.toResponse(

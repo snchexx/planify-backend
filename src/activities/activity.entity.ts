@@ -3,8 +3,10 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
+import { Reminder } from '../reminders/reminder.entity';
 import { User } from '../users/user.entity';
 
 @Entity('actividades')
@@ -27,4 +29,9 @@ export class Activity {
   @ManyToOne(() => User, { nullable: false, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'id_usuario', referencedColumnName: 'id' })
   usuario: User;
+
+  @OneToMany(() => Reminder, (reminder) => reminder.actividad, {
+    cascade: ['insert'],
+  })
+  recordatorios: Reminder[];
 }

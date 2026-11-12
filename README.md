@@ -90,6 +90,14 @@ Cada actividad pertenece a un usuario mediante `id_usuario` (relación muchos-a-
 
 Los campos son `nombreActividad`, `descripcion`, `fechaActividad` (`YYYY-MM-DD`) y `horaActividad` (`HH:mm`). El usuario dueño se toma del JWT al crear, salvo cuando un administrador especifica `idUsuario`. La fecha y hora se almacenan en columnas MySQL `DATE` y `TIME`.
 
+Al crear una actividad también se crea automáticamente un registro en `recordatorios`, con la misma fecha y hora y asociado mediante `id_actividad`. Una actividad puede tener varios recordatorios; al eliminarla, sus recordatorios también se eliminan.
+
+## Solicitudes de IA
+
+La entidad `solicitud_ia` almacena `id_solicitud`, `pregunta`, `fecha_hora` (establecida automáticamente al crear el registro) e `id_usuario`, que referencia a `users.id`.
+
+La entidad `respuesta_ia` almacena `id_respuesta`, `respuesta`, `fechayhora_respuesta` (establecida automáticamente) e `id_solicitud`. Cada solicitud puede tener una respuesta asociada.
+
 ## Swagger
 
 La documentación interactiva de la API está disponible en `http://localhost:8000/api` al iniciar la aplicación. Para probar rutas protegidas, selecciona **Authorize** e ingresa el JWT obtenido desde `/auth/login` o `/auth/register`.
