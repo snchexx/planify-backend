@@ -1,4 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ActivityPriority } from '../activity-priority.enum';
+import { ReminderOffset } from '../reminder-offset.enum';
 
 export class ActivityResponseDto {
   @ApiProperty({ example: 1 })
@@ -15,6 +17,18 @@ export class ActivityResponseDto {
 
   @ApiProperty({ example: '14:30:00', format: 'time' })
   horaActividad: string;
+
+  @ApiProperty({ example: 'Estudio', nullable: true })
+  categoria: string | null;
+
+  @ApiProperty({ enum: ActivityPriority, nullable: true })
+  prioridad: ActivityPriority | null;
+
+  @ApiProperty({ example: true, nullable: true })
+  recordatorioHabilitado: boolean | null;
+
+  @ApiProperty({ enum: ReminderOffset, nullable: true })
+  recordatorioMinutosAntes: ReminderOffset | null;
 
   @ApiProperty({ example: 12 })
   idUsuario: number;

@@ -1,12 +1,19 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../auth/authenticated-user';
 import { Role } from '../users/role.enum';
 import { UserStatus } from '../users/user-status.enum';
 import { User } from '../users/user.entity';
+import { Reminder } from '../reminders/reminder.entity';
 import { Activity } from './activity.entity';
+import { ActivityPriority } from './activity-priority.enum';
 import { CreateActivityDto } from './dto/create-activity.dto';
 import { ActivitiesService } from './activities.service';
+import { ReminderOffset } from './reminder-offset.enum';
 
 describe('ActivitiesService', () => {
   const queryBuilder = {
@@ -21,6 +28,13 @@ describe('ActivitiesService', () => {
     create: jest.fn(),
     save: jest.fn(),
     createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
+    manager: { transaction: jest.fn() },
+  };
+  const transactionManager = {
+    save: jest.fn(
+      async (target: unknown, entity?: unknown) => entity ?? target,
+    ),
+    delete: jest.fn().mockResolvedValue({ affected: 1 }),
   };
   const usersRepository = { findOneBy: jest.fn() };
   let service: ActivitiesService;
@@ -38,6 +52,9 @@ describe('ActivitiesService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    activitiesRepository.manager.transaction.mockImplementation(
+      async (callback) => callback(transactionManager),
+    );
     service = new ActivitiesService(
       activitiesRepository as unknown as Repository<Activity>,
       usersRepository as unknown as Repository<User>,
@@ -74,6 +91,189 @@ describe('ActivitiesService', () => {
       }),
     );
     expect(result.idUsuario).toBe(user.id);
+  });
+
+  it('persists custom category, priority, and reminder settings', async () => {
+    usersRepository.findOneBy.mockResolvedValue({ id: user.id });
+    activitiesRepository.save.mockImplementation(async (activity) => ({
+      ...activity,
+      idActividad: 24,
+    }));
+
+    const result = await service.create(
+      {
+        nombreActividad: 'Preparar examen',
+        descripcion: 'Repasar apuntes',
+        fechaActividad: '2026-11-12',
+        horaActividad: '14:30',
+        categoria: 'Examen de ciencias',
+        prioridad: ActivityPriority.HIGH,
+        recordatorioHabilitado: true,
+        recordatorioMinutosAntes: ReminderOffset.MINUTES_25,
+      },
+      user,
+    );
+
+    expect(activitiesRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categoria: 'Examen de ciencias',
+        prioridad: ActivityPriority.HIGH,
+        recordatorioHabilitado: true,
+        recordatorioMinutosAntes: ReminderOffset.MINUTES_25,
+      }),
+    );
+    expect(result).toMatchObject({
+      categoria: 'Examen de ciencias',
+      prioridad: ActivityPriority.HIGH,
+      recordatorioHabilitado: true,
+      recordatorioMinutosAntes: ReminderOffset.MINUTES_25,
+    });
+  });
+
+  it('schedules the reminder at the selected interval before the activity', async () => {
+    usersRepository.findOneBy.mockResolvedValue({ id: user.id });
+    activitiesRepository.save.mockImplementation(async (activity) => ({
+      ...activity,
+      idActividad: 25,
+    }));
+
+    await service.create(
+      {
+        nombreActividad: 'Preparar examen',
+        descripcion: '',
+        fechaActividad: '2026-11-12',
+        horaActividad: '00:10',
+        recordatorioHabilitado: true,
+        recordatorioMinutosAntes: ReminderOffset.MINUTES_15,
+      } as CreateActivityDto,
+      user,
+    );
+
+    expect(activitiesRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recordatorios: [
+          {
+            fechaRecordatorio: '2026-11-11',
+            horaRecordatorio: '23:55',
+          },
+        ],
+      }),
+    );
+  });
+
+  it('does not create a reminder row when notifications are disabled', async () => {
+    usersRepository.findOneBy.mockResolvedValue({ id: user.id });
+    activitiesRepository.save.mockImplementation(async (activity) => ({
+      ...activity,
+      idActividad: 26,
+    }));
+
+    await service.create(
+      {
+        nombreActividad: 'Leer',
+        descripcion: '',
+        fechaActividad: '2026-11-12',
+        horaActividad: '14:30',
+        recordatorioHabilitado: false,
+        recordatorioMinutosAntes: ReminderOffset.MINUTES_15,
+      } as CreateActivityDto,
+      user,
+    );
+
+    expect(activitiesRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ recordatorios: [] }),
+    );
+  });
+
+  it('requires a reminder interval when notifications are enabled', async () => {
+    await expect(
+      service.create(
+        {
+          nombreActividad: 'Preparar examen',
+          descripcion: 'Repasar apuntes',
+          fechaActividad: '2026-11-12',
+          horaActividad: '14:30',
+          recordatorioHabilitado: true,
+        } as CreateActivityDto,
+        user,
+      ),
+    ).rejects.toThrow(BadRequestException);
+    expect(usersRepository.findOneBy).not.toHaveBeenCalled();
+  });
+
+  it('updates activity category, priority, and reminder options', async () => {
+    const activity = {
+      idActividad: 24,
+      nombreActividad: 'Preparar examen',
+      descripcion: 'Repasar apuntes',
+      fechaActividad: '2026-11-12',
+      horaActividad: '14:30',
+      categoria: null,
+      prioridad: null,
+      recordatorioHabilitado: null,
+      recordatorioMinutosAntes: null,
+      usuario: { id: user.id },
+    };
+    queryBuilder.getOne.mockResolvedValue(activity);
+    const result = await service.update(
+      activity.idActividad,
+      {
+        categoria: 'Proyecto personal',
+        prioridad: ActivityPriority.LOW,
+        recordatorioHabilitado: true,
+        recordatorioMinutosAntes: ReminderOffset.MINUTES_60,
+      },
+      user,
+    );
+
+    expect(transactionManager.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        categoria: 'Proyecto personal',
+        prioridad: ActivityPriority.LOW,
+        recordatorioHabilitado: true,
+        recordatorioMinutosAntes: ReminderOffset.MINUTES_60,
+      }),
+    );
+    expect(transactionManager.delete).toHaveBeenCalledWith(Reminder, {
+      actividad: { idActividad: activity.idActividad },
+    });
+    expect(transactionManager.save).toHaveBeenCalledWith(
+      Reminder,
+      expect.objectContaining({
+        fechaRecordatorio: '2026-11-12',
+        horaRecordatorio: '13:30',
+      }),
+    );
+    expect(result.recordatorioMinutosAntes).toBe(ReminderOffset.MINUTES_60);
+  });
+
+  it('removes pending reminders when notifications are disabled', async () => {
+    const activity = {
+      idActividad: 27,
+      nombreActividad: 'Leer',
+      descripcion: '',
+      fechaActividad: '2026-11-12',
+      horaActividad: '14:30',
+      categoria: 'Estudio',
+      prioridad: ActivityPriority.MEDIUM,
+      recordatorioHabilitado: true,
+      recordatorioMinutosAntes: ReminderOffset.MINUTES_15,
+      usuario: { id: user.id },
+    };
+    queryBuilder.getOne.mockResolvedValue(activity);
+
+    await service.update(
+      activity.idActividad,
+      { recordatorioHabilitado: false },
+      user,
+    );
+
+    expect(transactionManager.delete).toHaveBeenCalledWith(Reminder, {
+      actividad: { idActividad: activity.idActividad },
+    });
+    expect(
+      transactionManager.save.mock.calls.some(([, reminder]) => reminder),
+    ).toBe(false);
   });
 
   it('prevents a regular user from assigning an activity to another user', async () => {
