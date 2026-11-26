@@ -10,6 +10,7 @@ import type { AuthenticatedUser } from '../auth/authenticated-user';
 import { Role } from '../users/role.enum';
 import { User } from '../users/user.entity';
 import { Reminder } from '../reminders/reminder.entity';
+import { localDateTimeToUtc } from '../reminders/reminder-time';
 import { Activity } from './activity.entity';
 import { ActivityResponseDto } from './dto/activity-response.dto';
 import { CreateActivityDto } from './dto/create-activity.dto';
@@ -242,16 +243,23 @@ export class ActivitiesService {
     date: string,
     time: string,
     minutesBefore: ReminderOffset | null | undefined,
-  ): { fechaRecordatorio: string; horaRecordatorio: string } {
+  ): {
+    fechaRecordatorio: string;
+    horaRecordatorio: string;
+    scheduledAtUtc: Date;
+  } {
     const [year, month, day] = date.split('-').map(Number);
     const [hour, minute] = time.split(':').map(Number);
     const reminderDate = new Date(
       Date.UTC(year, month - 1, day, hour, minute - (minutesBefore ?? 0)),
     ).toISOString();
 
+    const fechaRecordatorio = reminderDate.slice(0, 10);
+    const horaRecordatorio = reminderDate.slice(11, 16);
     return {
-      fechaRecordatorio: reminderDate.slice(0, 10),
-      horaRecordatorio: reminderDate.slice(11, 16),
+      fechaRecordatorio,
+      horaRecordatorio,
+      scheduledAtUtc: localDateTimeToUtc(fechaRecordatorio, horaRecordatorio),
     };
   }
 }

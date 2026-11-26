@@ -69,20 +69,64 @@ Guarda el resultado en `.env` como `JWT_SECRET=...`; no reutilices ni publiques 
 
 La tabla `users` se crea mediante `synchronize` en desarrollo. Para producción, usa migraciones en lugar de `synchronize`.
 
-| Método | Ruta             | Acceso                                   |
-| ------ | ---------------- | ---------------------------------------- |
-| POST   | `/auth/register` | Público; crea usuarios con rol `usuario` |
-| POST   | `/auth/login`    | Público                                  |
-| GET    | `/users/me`      | JWT válido                               |
-| GET    | `/users`         | JWT válido y rol `admin`                 |
-| POST   | `/users`         | JWT válido y rol `admin`; crea usuarios  |
-| GET    | `/users/:id`     | JWT válido y rol `admin`                 |
-| PATCH  | `/users/:id`     | JWT válido y rol `admin`                 |
-| DELETE | `/users/:id`     | JWT válido y rol `admin`                 |
+| Método | Ruta                    | Acceso                                       |
+| ------ | ----------------------- | -------------------------------------------- |
+| POST   | `/auth/register`        | Público; crea usuarios con rol `usuario`     |
+| POST   | `/auth/login`           | Público                                      |
+| POST   | `/auth/password/forgot` | Público; solicita código de recuperación     |
+| POST   | `/auth/password/reset`  | Público; cambia contraseña con código válido |
+| GET    | `/users/me`             | JWT válido                                   |
+| GET    | `/users`                | JWT válido y rol `admin`                     |
+| POST   | `/users`                | JWT válido y rol `admin`; crea usuarios      |
+| GET    | `/users/:id`            | JWT válido y rol `admin`                     |
+| PATCH  | `/users/:id`            | JWT válido y rol `admin`                     |
+| DELETE | `/users/:id`            | JWT válido y rol `admin`                     |
 
 El registro recibe `identificacion`, `nombres`, `apellidos`, `email` y `password`; el inicio de sesión recibe `email` y `password`. Envía el token devuelto como `Authorization: Bearer YOUR_JWT`. Para asignar un administrador, cambia el campo `role` del usuario a `admin` directamente en la base de datos; el registro público no permite elegir roles.
 
 Las rutas de administración aceptan `identificacion`, `nombres`, `apellidos`, `email`, `password`, `role` (`admin` o `usuario`) y `estado` (`activo` o `bloqueado`); todos son opcionales al actualizar. La identificación es única. El estado predeterminado es `activo`; un usuario bloqueado no puede iniciar sesión ni usar un JWT existente. Los campos del perfil son nullable en la base de datos para preservar usuarios preexistentes; el registro nuevo exige esos campos. Las contraseñas requieren al menos 8 caracteres y no pueden superar 72 bytes. Las solicitudes se validan con DTOs; campos no permitidos o inválidos reciben `400`. Las respuestas de usuario nunca incluyen la contraseña ni su hash.
+
+### Recuperación de contraseña
+
+Configura `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`,
+`SMTP_APP_PASSWORD` y `SMTP_FROM` en `.env`. Para Gmail se usa
+`smtp.gmail.com`, puerto `587` y `SMTP_SECURE=false`; `SMTP_APP_PASSWORD` debe
+ser una contraseña de aplicación, no la contraseña normal de Google. No
+publiques ni compartas estas credenciales.
+
+`POST /auth/password/forgot` recibe `{ "email": "usuario@ejemplo.com" }` y
+responde de forma genérica para no revelar si la cuenta existe. Si la cuenta
+está registrada, envía un código de 6 dígitos válido por 10 minutos. Se limita
+el reenvío a una solicitud por minuto y el código se consume tras un máximo de
+5 intentos.
+
+`POST /auth/password/reset` recibe `email`, `code` y `password`. El código se
+guarda hasheado en `password_reset_codes`, se elimina al vencer o usarse y la
+nueva contraseña debe cumplir las mismas reglas que en el registro. En
+desarrollo TypeORM crea la tabla al iniciar; en producción, crea una migración.
+
+### Notificaciones push
+
+Configura `FIREBASE_PROJECT_ID` y `GOOGLE_APPLICATION_CREDENTIALS` en `.env`.
+La segunda variable debe apuntar al JSON de Firebase Admin SDK guardado fuera
+del repositorio. No incluyas esa clave privada en Git ni en la aplicación móvil.
+La app Android requiere su propio `google-services.json` en
+`android/app/google-services.json`.
+
+Después de iniciar sesión, la app solicita permiso de notificaciones y registra
+el token FCM del dispositivo en `POST /notifications/devices` usando el JWT.
+Para comprobar el envío, toca el icono de notificaciones en la app de depuración
+o llama `POST /notifications/test` con el mismo JWT. La respuesta indica cuántos
+dispositivos recibieron el envío y cuántos fallaron. El endpoint de prueba solo
+envía al usuario autenticado.
+
+El backend consulta recordatorios pendientes cada 15 segundos, los reclama de
+forma atómica en MySQL y reintenta fallos transitorios hasta cinco veces. Los
+recordatorios vencidos por más de 15 minutos se omiten. Las fechas y horas de
+las actividades se interpretan en `America/Bogota`; puedes sobrescribir esta
+zona con `ACTIVITY_TIME_ZONE` usando un identificador IANA válido. En desarrollo,
+TypeORM actualiza el esquema automáticamente; en producción debe generarse una
+migración para las nuevas columnas de `recordatorios`.
 
 ## Actividades
 

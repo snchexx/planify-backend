@@ -86,6 +86,7 @@ describe('ActivitiesService', () => {
           {
             fechaRecordatorio: '2026-11-12',
             horaRecordatorio: '14:30',
+            scheduledAtUtc: new Date('2026-11-12T19:30:00.000Z'),
           },
         ],
       }),
@@ -155,6 +156,7 @@ describe('ActivitiesService', () => {
           {
             fechaRecordatorio: '2026-11-11',
             horaRecordatorio: '23:55',
+            scheduledAtUtc: new Date('2026-11-12T04:55:00.000Z'),
           },
         ],
       }),
@@ -242,6 +244,7 @@ describe('ActivitiesService', () => {
       expect.objectContaining({
         fechaRecordatorio: '2026-11-12',
         horaRecordatorio: '13:30',
+        scheduledAtUtc: new Date('2026-11-12T18:30:00.000Z'),
       }),
     );
     expect(result.recordatorioMinutosAntes).toBe(ReminderOffset.MINUTES_60);

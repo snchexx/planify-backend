@@ -6,6 +6,7 @@ import { ActivitiesModule } from './activities/activities.module';
 import { UsersModule } from './users/users.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AppService } from './app.service';
         username: configService.getOrThrow<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD', ''),
         database: configService.getOrThrow<string>('DB_DATABASE'),
+        timezone: 'Z',
         autoLoadEntities: true,
         synchronize: true,
       }),
@@ -29,6 +31,7 @@ import { AppService } from './app.service';
     AuthModule,
     UsersModule,
     ActivitiesModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
